@@ -3,12 +3,13 @@ import random
 import time
 
 # --- Game Data ---
+# The KEY is the secret full location (Hidden), the VALUE is the single Clue Word (Given to Civilians/Spy).
 LOCATIONS = {
-    "A crowded museum gift shop": "Artifact",
+    "A crowded museum gift shop": "Statue",
     "A high school cafeteria during lunch": "Tray",
-    "A rainy night market": "Umbrella",
+    "A rainy night market": "Lantern",
     "A busy airport lounge": "Gate",
-    "A submarine control room": "Dial",
+    "A submarine control room": "Periscope",
     "An outdoor music festival": "Wristband",
     "A medieval banquet hall": "Goblet"
 }
@@ -25,9 +26,9 @@ def initialize_game_state():
     if 'roles' not in st.session_state:
         st.session_state.roles = {}
     if 'location' not in st.session_state:
-        st.session_state.location = ""
-    if 'clue' not in st.session_state:
-        st.session_state.clue = ""
+        st.session_state.location = "" # Holds the full secret location string
+    if 'clue_word' not in st.session_state:
+        st.session_state.clue_word = "" # Holds the single clue word
     if 'reveal_name' not in st.session_state:
         st.session_state.reveal_name = None
     if 'reveal_message' not in st.session_state:
@@ -52,17 +53,14 @@ def start_game():
         st.error("You need at least 3 players to start the game.")
         return
 
-    # 1. Randomly select location and clue
-    st.session_state.location, spy_goal_word = random.choice(list(LOCATIONS.items()))
-    st.session_state.spy_goal_word = spy_goal_word
+    # 1. Randomly select location (full description) and the common single clue word
+    st.session_state.location, common_clue_word = random.choice(list(LOCATIONS.items()))
+    st.session_state.clue_word = common_clue_word # This is the only word Civilians/Spy get
     
-    # The clue is the location itself for Civilians/Spy, but Mr. White gets nothing.
-    st.session_state.clue = st.session_state.location
-
     # 2. Randomly assign roles
     shuffled_players = random.sample(players, num_players)
     
-    # Determine how many of each role
+    # Determine how many of each role (1 Mr. White, 1 Spy, rest Civilian)
     role_distribution = {
         "Mr. White": 1,
         "The Spy": 1,
@@ -90,22 +88,21 @@ def reset_game():
     st.session_state.game_started = False
     st.session_state.roles = {}
     st.session_state.location = ""
-    st.session_state.clue = ""
-    st.session_state.spy_goal_word = ""
+    st.session_state.clue_word = ""
     st.session_state.reveal_name = None
     st.session_state.reveal_message = None
 
 def get_role_message(player_name, role):
     """Constructs the personalized message for the player."""
-    location_clue = st.session_state.location
-    spy_goal = st.session_state.spy_goal_word
+    clue_word = st.session_state.clue_word
+    full_location = st.session_state.location # Stored only for the Spy's goal reference
     
     if role == "Mr. White":
-        return "**Your Role: Mr. White** 🕵️‍♂️\n\nYou are the imposter! You have **NO CLUE** about the location. Listen carefully to the others, blend in, and cause confusion. Try to lead the voting away from you!"
+        return "**Your Role: Mr. White** 🕵️‍♂️\n\nYou are the imposter! You have **NO CLUE** about the single word or the location. Listen carefully, blend in, and cause confusion. Your goal is to survive the vote until only one other player remains!"
     elif role == "The Spy":
-        return f"**Your Role: The Spy** 🤫\n\n**The Location is:** *{location_clue}*\n\nYour secret mission is to guess the **Goal Word** (vaguely related to the location). The Goal Word is: **{spy_goal}**.\n\nBlend in with the Civilians, but if you guess the Goal Word correctly before being voted out, The Spy wins!"
+        return f"**Your Role: The Spy** 🤫\n\n**The Clue Word is:** *{clue_word}*\n\nYour mission is to deduce the full location (**'{full_location}'**) from this word and the discussion. If you guess the full location correctly (by privately telling the GM) before you are voted out, The Spy wins!"
     else: # Civilian
-        return f"**Your Role: Civilian** 😇\n\n**The Location is:** *{location_clue}*\n\nYour mission is to find and vote out **Mr. White**! Be vague when describing the location so Mr. White doesn't figure it out, but clear enough to prove you are not The Spy."
+        return f"**Your Role: Civilian** 😇\n\n**The Clue Word is:** *{clue_word}*\n\nYour mission is to find and vote out **Mr. White**! Discuss aspects of the location related to the Clue Word, but be vague enough so Mr. White can't figure out the full location."
 
 def show_role(player_name):
     """Sets the state to display a specific player's role and forces a re-run."""
@@ -222,13 +219,13 @@ else:
         st.markdown(
             f"""
             #### Everyone, start discussing the location!
-            The location is: **{st.session_state.location}**
             
-            Each player must take a turn describing an aspect of the location without saying the actual Clue (the location name itself).
+            The secret common word is: **{st.session_state.clue_word}**
             
-            - **Mr. White:** Needs to figure out the location.
-            - **The Spy:** Needs to guess the secret Goal Word (**{st.session_state.spy_goal_word}**) by whispering it to the GM.
-            - **Civilians:** Need to find Mr. White.
+            - **Civilians and The Spy:** Know the word and must convince others they know the full location without giving it away.
+            - **Mr. White:** Knows nothing and must deduce the word and location from the discussion.
+            
+            All players must take a turn describing an aspect of the location that relates to the Clue Word.
             """
         )
         st.markdown("---")
@@ -249,18 +246,19 @@ else:
         if vote_winner:
             # Display final reveal
             st.markdown(f"#### The vote is cast against **{vote_winner}**.")
-            st.markdown(f"**{vote_winner}'s actual role was:**")
             
             # The reveal logic
             final_role = st.session_state.roles.get(vote_winner, "Unknown")
             
+            st.markdown(f"**{vote_winner}'s actual role was:** {final_role}")
+
             if final_role == "Mr. White":
                  st.balloons()
-                 st.success(f"🎉 **Mr. White found!** The Civilians win! The location was **{st.session_state.location}**.")
+                 st.success(f"🎉 **Mr. White found!** The Civilians win! The full secret location was **{st.session_state.location}**.")
             elif final_role == "The Spy":
-                 st.error(f"❌ **The Spy was eliminated!** The Civilians lose, as The Spy had a separate win condition! The location was **{st.session_state.location}**.")
+                 st.error(f"❌ **The Spy was eliminated!** The Civilians lose, as The Spy had a separate win condition, OR the game continues! The full secret location was **{st.session_state.location}**.")
             else:
-                 st.error(f"😭 **You eliminated an innocent Civilian!** The game continues or Mr. White wins! The location was **{st.session_state.location}**.")
+                 st.error(f"😭 **You eliminated an innocent Civilian!** The game continues or Mr. White wins! The full secret location was **{st.session_state.location}**.")
             
             st.markdown("---")
         
@@ -268,10 +266,10 @@ else:
             st.button("🔄 Reset Game", on_click=reset_game, use_container_width=True)
             
     st.markdown("---")
-    st.caption("Game State (For GM Reference):")
+    st.caption("Game State (GM Eyes Only):")
     st.json({
-        "Location": st.session_state.location,
-        "Spy Goal Word": st.session_state.spy_goal_word,
+        "Full Secret Location": st.session_state.location,
+        "Common Clue Word": st.session_state.clue_word,
         "Player Roles": st.session_state.roles
     })
     
