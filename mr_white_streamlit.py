@@ -108,24 +108,21 @@ def get_role_message(player_name, role):
         return f"**Your Role: Civilian** 😇\n\n**The Location is:** *{location_clue}*\n\nYour mission is to find and vote out **Mr. White**! Be vague when describing the location so Mr. White doesn't figure it out, but clear enough to prove you are not The Spy."
 
 def show_role(player_name):
-    """Sets the state to display a specific player's role."""
+    """Sets the state to display a specific player's role and forces a re-run."""
     role = st.session_state.roles.get(player_name)
     if role:
         st.session_state.reveal_name = player_name
         st.session_state.reveal_message = get_role_message(player_name, role)
         
-        # Clear the message after a short delay for privacy in hot-seat mode
-        st.experimental_rerun()
-        
-        # This part is tricky in Streamlit. Use a sleep thread to simulate a timeout.
-        # However, due to Streamlit's nature, an explicit button is safer than a timer.
-        # We will rely on a "Hide Role" button below.
+        # CORRECTED: Use st.rerun() to immediately update the UI
+        st.rerun()
 
 def hide_role():
-    """Hides the role message."""
+    """Hides the role message and forces a re-run."""
     st.session_state.reveal_name = None
     st.session_state.reveal_message = None
-    st.experimental_rerun()
+    # CORRECTED: Use st.rerun() to immediately update the UI
+    st.rerun()
 
 # --- Streamlit UI ---
 
@@ -225,7 +222,9 @@ else:
         st.markdown(
             f"""
             #### Everyone, start discussing the location!
-            Each player must take a turn describing an aspect of the location without saying the actual Clue (which is **{st.session_state.location}**).
+            The location is: **{st.session_state.location}**
+            
+            Each player must take a turn describing an aspect of the location without saying the actual Clue (the location name itself).
             
             - **Mr. White:** Needs to figure out the location.
             - **The Spy:** Needs to guess the secret Goal Word (**{st.session_state.spy_goal_word}**) by whispering it to the GM.
